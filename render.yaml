@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: gestion-stock
+    runtime: node
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma db push && node -e "require('./lib/seed-prod.js')" && npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gestion-stock-db
+          property: connectionString
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@sistema.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: gestion-stock-db
+    databaseName: gestion_stock
+    plan: free
