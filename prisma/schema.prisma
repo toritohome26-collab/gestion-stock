@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        String   @default("SELLER")
+  permissions String   @default("[]")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockMovements  StockMovement[]
+  officeSales     OfficeSale[]
+  expenses        Expense[]
+  payments        Payment[]
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  description String?
+  categoryId  String?
+  costPrice   Float    @default(0)
+  salePrice   Float    @default(0)
+  stock       Int      @default(0)
+  minStock    Int      @default(5)
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category        Category?        @relation(fields: [categoryId], references: [id])
+  stockMovements  StockMovement[]
+  saleItems       SaleItem[]
+  officeSaleItems OfficeSaleItem[]
+}
+
+model StockMovement {
+  id            String   @id @default(cuid())
+  productId     String
+  type          String
+  quantity      Int
+  reason        String?
+  referenceId   String?
+  referenceType String?
+  notes         String?
+  userId        String?
+  createdAt     DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+}
+
+model Sale {
+  id              String    @id @default(cuid())
+  channel         String
+  externalId      String?   @unique
+  externalOrderId String?
+  status          String    @default("pending")
+  buyerName       String?
+  buyerEmail      String?
+  subtotal        Float     @default(0)
+  commission      Float     @default(0)
+  shipping        Float     @default(0)
+  discount        Float     @default(0)
+  total           Float     @default(0)
+  netAmount       Float     @default(0)
+  currency        String    @default("ARS")
+  notes           String?
+  syncedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  items SaleItem[]
+}
+
+model SaleItem {
+  id          String  @id @default(cuid())
+  saleId      String
+  productId   String?
+  productName String
+  sku         String?
+  quantity    Int
+  unitPrice   Float
+  total       Float
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+}
+
+model OfficeSale {
+  id            String   @id @default(cuid())
+  saleNumber    Int
+  paymentMethod String   @default("CASH")
+  subtotal      Float    @default(0)
+  discount      Float    @default(0)
+  total         Float    @default(0)
+  notes         String?
+  userId        String?
+  createdAt     DateTime @default(now())
+
+  user  User?            @relation(fields: [userId], references: [id])
+  items OfficeSaleItem[]
+}
+
+model OfficeSaleItem {
+  id           String  @id @default(cuid())
+  officeSaleId String
+  productId    String?
+  productName  String
+  quantity     Int
+  unitPrice    Float
+  total        Float
+
+  officeSale OfficeSale @relation(fields: [officeSaleId], references: [id], onDelete: Cascade)
+  product    Product?   @relation(fields: [productId], references: [id])
+}
+
+model Expense {
+  id          String    @id @default(cuid())
+  category    String    @default("GENERAL")
+  description String
+  amount      Float
+  currency    String    @default("ARS")
+  date        DateTime  @default(now())
+  dueDate     DateTime?
+  isPaid      Boolean   @default(false)
+  paidAt      DateTime?
+  vendor      String?
+  notes       String?
+  userId      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user     User?     @relation(fields: [userId], references: [id])
+  payments Payment[]
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  expenseId String
+  amount    Float
+  date      DateTime @default(now())
+  method    String   @default("CASH")
+  notes     String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id])
+}
+
+model Integration {
+  id           String    @id @default(cuid())
+  platform     String    @unique
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  shopId       String?
+  shopName     String?
+  userId       String?
+  isActive     Boolean   @default(false)
+  lastSync     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
