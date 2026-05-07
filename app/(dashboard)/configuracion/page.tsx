@@ -32,7 +32,10 @@ export default function ConfiguracionPage() {
     fetch("/api/integrations/tiendanube").then(r => r.json()).then(setTn);
   }, []);
 
-  const mlAuthUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${process.env.NEXT_PUBLIC_ML_APP_ID || "TU_APP_ID"}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_ML_REDIRECT_URI || "http://localhost:3000/api/integrations/mercadolibre/callback")}`;
+  const mlRedirectUri = typeof window !== "undefined"
+    ? `${window.location.origin}/api/integrations/mercadolibre/callback`
+    : process.env.NEXT_PUBLIC_ML_REDIRECT_URI || "";
+  const mlAuthUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${process.env.NEXT_PUBLIC_ML_APP_ID || ""}&redirect_uri=${encodeURIComponent(mlRedirectUri)}`;
 
   const tnAuthUrl = `https://www.tiendanube.com/apps/${process.env.NEXT_PUBLIC_TN_APP_ID || "TU_APP_ID"}/authorize`;
 
