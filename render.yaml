@@ -2,7 +2,7 @@ services:
   - type: web
     name: gestion-stock
     runtime: node
-    buildCommand: npm install --include=dev && npx prisma generate && npx prisma db push --force-reset && npx tsx lib/seed-prod.ts && npm run build
+    buildCommand: npm install --include=dev && npx prisma generate && npx prisma db push && npx tsx lib/seed-prod.ts && npm run build
     startCommand: npm start
     envVars:
       - key: DATABASE_URL
