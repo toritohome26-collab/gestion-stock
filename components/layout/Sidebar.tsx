@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, DollarSign,
-  Calculator, Users, Settings, TrendingUp, LogOut,
+  Calculator, Users, Settings, TrendingUp, LogOut, Code2,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const permissions: string[] = (session?.user as any)?.permissions || [];
+  const isSuperAdmin = (session?.user as any)?.isSuperAdmin;
 
   const visible = navItems.filter(
     (item) => !item.permission || permissions.includes(item.permission)
@@ -60,6 +61,15 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-gray-700 p-4">
+        {isSuperAdmin && (
+          <Link
+            href="/admin"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-green-400 hover:bg-gray-800 hover:text-green-300 transition-colors mb-1"
+          >
+            <Code2 className="h-5 w-5" />
+            Panel Developer
+          </Link>
+        )}
         <div className="mb-3 px-3">
           <p className="text-sm font-medium text-white truncate">{session?.user?.name}</p>
           <p className="text-xs text-gray-400 truncate">{session?.user?.email}</p>

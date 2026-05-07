@@ -5,7 +5,10 @@ import prisma from "./prisma";
 async function main() {
   const adminEmail = process.env.ADMIN_EMAIL || "admin@sistema.com";
   const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const superEmail = process.env.SUPERADMIN_EMAIL || "dev@sistema.com";
+  const superPassword = process.env.SUPERADMIN_PASSWORD || "superdev123";
   const orgSlug = "sistema-principal";
+  const systemSlug = "system-internal";
 
   let org = await prisma.organization.findUnique({ where: { slug: orgSlug } });
   if (!org) {
@@ -37,6 +40,22 @@ async function main() {
       },
     });
     console.log("Admin creado");
+  }
+
+  // Super admin en org interna del sistema
+  let systemOrg = await prisma.organization.findUnique({ where: { slug: systemSlug } });
+  if (!systemOrg) {
+    systemOrg = await prisma.organization.create({
+      data: { name: "Sistema Interno", slug: systemSlug, email: superEmail, plan: "system" },
+    });
+  }
+  const existingSuper = await prisma.user.findFirst({ where: { email: superEmail, organizationId: systemOrg.id } });
+  if (!existingSuper) {
+    const hashed = await bcrypt.hash(superPassword, 12);
+    await prisma.user.create({
+      data: { name: "Developer", email: superEmail, password: hashed, role: "SUPERADMIN", permissions: "[]", organizationId: systemOrg.id },
+    });
+    console.log("SuperAdmin creado:", superEmail);
   }
 
   const catNames = ["General", "Electrónica", "Ropa", "Hogar"];

@@ -43,6 +43,7 @@ export const authOptions: NextAuthOptions = {
           permissions,
           organizationId: user.organizationId,
           organizationName: user.organization.name,
+          isSuperAdmin: user.role === "SUPERADMIN",
         };
       },
     }),
@@ -55,6 +56,7 @@ export const authOptions: NextAuthOptions = {
         token.permissions = (user as any).permissions;
         token.organizationId = (user as any).organizationId;
         token.organizationName = (user as any).organizationName;
+        token.isSuperAdmin = (user as any).isSuperAdmin;
       }
       return token;
     },
@@ -65,6 +67,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).permissions = token.permissions;
         (session.user as any).organizationId = token.organizationId;
         (session.user as any).organizationName = token.organizationName;
+        (session.user as any).isSuperAdmin = token.isSuperAdmin;
       }
       return session;
     },
