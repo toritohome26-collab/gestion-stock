@@ -11,7 +11,9 @@ export async function GET() {
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("users.view")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
+  const orgId = (session.user as any).organizationId;
   const users = await prisma.user.findMany({
+    where: { organizationId: orgId },
     select: { id: true, name: true, email: true, role: true, permissions: true, isActive: true, createdAt: true },
     orderBy: { name: "asc" },
   });
@@ -25,17 +27,19 @@ export async function POST(req: Request) {
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("users.create")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
+  const orgId = (session.user as any).organizationId;
   const body = await req.json();
   if (!body.email || !body.password || !body.name) {
     return NextResponse.json({ error: "Nombre, email y contraseña son requeridos" }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: body.email } });
+  const existing = await prisma.user.findFirst({ where: { email: body.email, organizationId: orgId } });
   if (existing) return NextResponse.json({ error: "El email ya existe" }, { status: 400 });
 
   const hashed = await bcrypt.hash(body.password, 12);
   const user = await prisma.user.create({
     data: {
+      organizationId: orgId,
       name: body.name,
       email: body.email,
       password: hashed,

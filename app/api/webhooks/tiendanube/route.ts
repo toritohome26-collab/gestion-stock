@@ -9,7 +9,7 @@ export async function POST(req: Request) {
       await processTNWebhook(event, store_id.toString(), parseInt(id));
     }
     return NextResponse.json({ ok: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ ok: true });
   }
 }

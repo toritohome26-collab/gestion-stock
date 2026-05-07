@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") || "";
@@ -14,13 +15,9 @@ export async function GET(req: Request) {
 
   const products = await prisma.product.findMany({
     where: {
+      organizationId: orgId,
       isActive: true,
-      ...(search && {
-        OR: [
-          { name: { contains: search } },
-          { sku: { contains: search } },
-        ],
-      }),
+      ...(search && { OR: [{ name: { contains: search } }, { sku: { contains: search } }] }),
       ...(categoryId && { categoryId }),
     },
     include: { category: true },
@@ -34,18 +31,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("stock.create")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const body = await req.json();
-
-  if (!body.name || !body.sku) {
-    return NextResponse.json({ error: "Nombre y SKU son requeridos" }, { status: 400 });
-  }
+  if (!body.name || !body.sku) return NextResponse.json({ error: "Nombre y SKU son requeridos" }, { status: 400 });
 
   const product = await prisma.product.create({
     data: {
+      organizationId: orgId,
       name: body.name,
       sku: body.sku,
       description: body.description,
@@ -61,6 +57,7 @@ export async function POST(req: Request) {
   if (product.stock > 0) {
     await prisma.stockMovement.create({
       data: {
+        organizationId: orgId,
         productId: product.id,
         type: "IN",
         quantity: product.stock,

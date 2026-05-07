@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { TrendingUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,8 @@ import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const registered = searchParams.get("registered");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -43,6 +46,12 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-gray-900">GestiónStock</h1>
             <p className="mt-1 text-sm text-gray-500">Ingresá a tu cuenta</p>
           </div>
+
+          {registered && (
+            <div className="mb-4 rounded-md bg-green-50 px-4 py-3 text-sm text-green-700 border border-green-200">
+              Cuenta creada con éxito. Ingresá con tus datos.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
@@ -86,6 +95,13 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          <p className="mt-4 text-center text-sm text-gray-500">
+            ¿No tenés cuenta?{" "}
+            <Link href="/register" className="text-blue-600 hover:underline font-medium">
+              Registrate gratis
+            </Link>
+          </p>
         </div>
       </div>
     </div>

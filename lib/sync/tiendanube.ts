@@ -2,9 +2,11 @@ import prisma from "@/lib/prisma";
 
 const TN_API = "https://api.tiendanube.com/v1";
 
-export async function syncTNOrders(): Promise<number> {
-  const integration = await prisma.integration.findUnique({ where: { platform: "TIENDANUBE" } });
-  if (!integration?.isActive || !integration.accessToken || !integration.shopId) return 0;
+export async function syncTNOrders(orgId: string): Promise<number> {
+  const integration = await prisma.integration.findFirst({
+    where: { platform: "TIENDANUBE", organizationId: orgId, isActive: true },
+  });
+  if (!integration?.accessToken || !integration.shopId) return 0;
 
   const sinceDate = integration.lastSync
     ? integration.lastSync.toISOString()
@@ -26,7 +28,7 @@ export async function syncTNOrders(): Promise<number> {
   let newCount = 0;
   for (const order of orders) {
     const externalId = `TN-${order.id}`;
-    const existing = await prisma.sale.findUnique({ where: { externalId } });
+    const existing = await prisma.sale.findFirst({ where: { externalId, organizationId: orgId } });
     if (existing) continue;
 
     const items = (order.products || []).map((item: any) => ({
@@ -44,6 +46,7 @@ export async function syncTNOrders(): Promise<number> {
 
     await prisma.sale.create({
       data: {
+        organizationId: orgId,
         channel: "TIENDANUBE",
         externalId,
         externalOrderId: order.id.toString(),
@@ -64,15 +67,18 @@ export async function syncTNOrders(): Promise<number> {
 
     for (const item of items) {
       if (!item.sku) continue;
-      const product = await prisma.product.findFirst({
-        where: { sku: item.sku, isActive: true },
-      });
+      const product = await prisma.product.findFirst({ where: { sku: item.sku, organizationId: orgId, isActive: true } });
       if (product) {
         await prisma.product.update({ where: { id: product.id }, data: { stock: { decrement: item.quantity } } });
         await prisma.stockMovement.create({
           data: {
-            productId: product.id, type: "OUT", quantity: item.quantity,
-            reason: `Venta TN #${order.id}`, referenceId: externalId, referenceType: "SALE",
+            organizationId: orgId,
+            productId: product.id,
+            type: "OUT",
+            quantity: item.quantity,
+            reason: `Venta TN #${order.id}`,
+            referenceId: externalId,
+            referenceType: "SALE",
           },
         });
       }
@@ -82,7 +88,7 @@ export async function syncTNOrders(): Promise<number> {
   }
 
   await prisma.integration.update({
-    where: { platform: "TIENDANUBE" },
+    where: { id: integration.id },
     data: { lastSync: new Date() },
   });
 
@@ -100,11 +106,14 @@ function mapTNStatus(status: string) {
 export async function processTNWebhook(event: string, storeId: string, orderId: number) {
   if (!event.startsWith("order/")) return;
 
-  const integration = await prisma.integration.findUnique({ where: { platform: "TIENDANUBE" } });
-  if (!integration?.isActive || !integration.accessToken) return;
+  const integration = await prisma.integration.findFirst({
+    where: { platform: "TIENDANUBE", shopId: storeId, isActive: true },
+  });
+  if (!integration?.accessToken) return;
 
+  const orgId = integration.organizationId;
   const externalId = `TN-${orderId}`;
-  const existing = await prisma.sale.findUnique({ where: { externalId } });
+  const existing = await prisma.sale.findFirst({ where: { externalId, organizationId: orgId } });
   if (existing) return;
 
   const res = await fetch(`${TN_API}/${storeId}/orders/${orderId}`, {
@@ -131,6 +140,7 @@ export async function processTNWebhook(event: string, storeId: string, orderId: 
 
   await prisma.sale.create({
     data: {
+      organizationId: orgId,
       channel: "TIENDANUBE",
       externalId,
       externalOrderId: orderId.toString(),
@@ -145,13 +155,18 @@ export async function processTNWebhook(event: string, storeId: string, orderId: 
 
   for (const item of items) {
     if (!item.sku) continue;
-    const product = await prisma.product.findFirst({ where: { sku: item.sku, isActive: true } });
+    const product = await prisma.product.findFirst({ where: { sku: item.sku, organizationId: orgId, isActive: true } });
     if (product) {
       await prisma.product.update({ where: { id: product.id }, data: { stock: { decrement: item.quantity } } });
       await prisma.stockMovement.create({
         data: {
-          productId: product.id, type: "OUT", quantity: item.quantity,
-          reason: `Webhook TN #${orderId}`, referenceId: externalId, referenceType: "SALE",
+          organizationId: orgId,
+          productId: product.id,
+          type: "OUT",
+          quantity: item.quantity,
+          reason: `Webhook TN #${orderId}`,
+          referenceId: externalId,
+          referenceType: "SALE",
         },
       });
     }

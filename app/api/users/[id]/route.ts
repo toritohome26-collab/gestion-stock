@@ -11,7 +11,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("users.edit")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
+  const orgId = (session.user as any).organizationId;
   const body = await req.json();
+
+  const target = await prisma.user.findFirst({ where: { id: params.id, organizationId: orgId } });
+  if (!target) return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
 
   const updateData: any = {
     name: body.name,
@@ -39,6 +43,10 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("users.delete")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+
+  const orgId = (session.user as any).organizationId;
+  const target = await prisma.user.findFirst({ where: { id: params.id, organizationId: orgId } });
+  if (!target) return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
 
   await prisma.user.update({ where: { id: params.id }, data: { isActive: false } });
   return NextResponse.json({ ok: true });

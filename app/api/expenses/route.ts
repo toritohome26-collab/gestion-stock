@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
   const { searchParams } = new URL(req.url);
   const isPaid = searchParams.get("isPaid");
@@ -13,13 +14,11 @@ export async function GET(req: Request) {
 
   const expenses = await prisma.expense.findMany({
     where: {
+      organizationId: orgId,
       ...(isPaid !== null && isPaid !== undefined ? { isPaid: isPaid === "true" } : {}),
       ...(category && { category }),
     },
-    include: {
-      payments: true,
-      user: { select: { name: true } },
-    },
+    include: { payments: true, user: { select: { name: true } } },
     orderBy: { date: "desc" },
   });
 
@@ -29,14 +28,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("finances.create")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const body = await req.json();
-
   const expense = await prisma.expense.create({
     data: {
+      organizationId: orgId,
       category: body.category || "GENERAL",
       description: body.description,
       amount: parseFloat(body.amount),

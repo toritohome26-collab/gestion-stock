@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -6,6 +8,10 @@ export async function GET(req: Request) {
   const code = searchParams.get("code");
 
   if (!code) return NextResponse.redirect(new URL("/configuracion?error=tn_no_code", req.url));
+
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.redirect(new URL("/login", req.url));
+  const orgId = (session.user as any).organizationId;
 
   const res = await fetch("https://www.tiendanube.com/apps/authorize/token", {
     method: "POST",
@@ -22,22 +28,30 @@ export async function GET(req: Request) {
 
   const data = await res.json();
 
-  await prisma.integration.upsert({
-    where: { platform: "TIENDANUBE" },
-    update: {
-      accessToken: data.access_token,
-      shopId: data.user_id?.toString(),
-      shopName: `Tiendanube #${data.user_id}`,
-      isActive: true,
-    },
-    create: {
-      platform: "TIENDANUBE",
-      accessToken: data.access_token,
-      shopId: data.user_id?.toString(),
-      shopName: `Tiendanube #${data.user_id}`,
-      isActive: true,
-    },
-  });
+  const existing = await prisma.integration.findFirst({ where: { platform: "TIENDANUBE", organizationId: orgId } });
+
+  if (existing) {
+    await prisma.integration.update({
+      where: { id: existing.id },
+      data: {
+        accessToken: data.access_token,
+        shopId: data.user_id?.toString(),
+        shopName: `Tiendanube #${data.user_id}`,
+        isActive: true,
+      },
+    });
+  } else {
+    await prisma.integration.create({
+      data: {
+        organizationId: orgId,
+        platform: "TIENDANUBE",
+        accessToken: data.access_token,
+        shopId: data.user_id?.toString(),
+        shopName: `Tiendanube #${data.user_id}`,
+        isActive: true,
+      },
+    });
+  }
 
   return NextResponse.redirect(new URL("/configuracion?success=tn_connected", req.url));
 }

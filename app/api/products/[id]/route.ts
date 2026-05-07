@@ -6,9 +6,10 @@ import prisma from "@/lib/prisma";
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
+  const product = await prisma.product.findFirst({
+    where: { id: params.id, organizationId: orgId },
     include: {
       category: true,
       stockMovements: { orderBy: { createdAt: "desc" }, take: 20, include: { user: { select: { name: true } } } },
@@ -22,12 +23,13 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("stock.edit")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const body = await req.json();
-  const current = await prisma.product.findUnique({ where: { id: params.id } });
+  const current = await prisma.product.findFirst({ where: { id: params.id, organizationId: orgId } });
   if (!current) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const newStock = parseInt(body.stock) ?? current.stock;
@@ -51,6 +53,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (stockDiff !== 0) {
     await prisma.stockMovement.create({
       data: {
+        organizationId: orgId,
         productId: product.id,
         type: stockDiff > 0 ? "IN" : "OUT",
         quantity: Math.abs(stockDiff),
@@ -67,6 +70,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const orgId = (session.user as any).organizationId;
 
   const perms: string[] = (session.user as any).permissions || [];
   if (!perms.includes("stock.delete")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });

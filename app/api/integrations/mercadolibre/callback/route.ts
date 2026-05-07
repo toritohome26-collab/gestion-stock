@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -7,6 +8,12 @@ export async function GET(req: Request) {
   const code = searchParams.get("code");
 
   if (!code) return NextResponse.redirect(new URL("/configuracion?error=ml_no_code", req.url));
+
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.redirect(new URL("/login", req.url));
+  const orgId = (session.user as any).organizationId;
+
+  const redirectUri = `${new URL(req.url).origin}/api/integrations/mercadolibre/callback`;
 
   const res = await fetch("https://api.mercadolibre.com/oauth/token", {
     method: "POST",
@@ -16,7 +23,7 @@ export async function GET(req: Request) {
       client_id: process.env.ML_APP_ID!,
       client_secret: process.env.ML_CLIENT_SECRET!,
       code,
-      redirect_uri: process.env.ML_REDIRECT_URI!,
+      redirect_uri: redirectUri,
     }),
   });
 
@@ -27,28 +34,36 @@ export async function GET(req: Request) {
   const userRes = await fetch("https://api.mercadolibre.com/users/me", {
     headers: { Authorization: `Bearer ${data.access_token}` },
   });
-  const user = userRes.ok ? await userRes.json() : null;
+  const mlUser = userRes.ok ? await userRes.json() : null;
 
-  await prisma.integration.upsert({
-    where: { platform: "MERCADOLIBRE" },
-    update: {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt: new Date(Date.now() + data.expires_in * 1000),
-      shopId: data.user_id?.toString(),
-      shopName: user?.nickname || "MercadoLibre",
-      isActive: true,
-    },
-    create: {
-      platform: "MERCADOLIBRE",
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt: new Date(Date.now() + data.expires_in * 1000),
-      shopId: data.user_id?.toString(),
-      shopName: user?.nickname || "MercadoLibre",
-      isActive: true,
-    },
-  });
+  const existing = await prisma.integration.findFirst({ where: { platform: "MERCADOLIBRE", organizationId: orgId } });
+
+  if (existing) {
+    await prisma.integration.update({
+      where: { id: existing.id },
+      data: {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: new Date(Date.now() + data.expires_in * 1000),
+        shopId: data.user_id?.toString(),
+        shopName: mlUser?.nickname || "MercadoLibre",
+        isActive: true,
+      },
+    });
+  } else {
+    await prisma.integration.create({
+      data: {
+        organizationId: orgId,
+        platform: "MERCADOLIBRE",
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: new Date(Date.now() + data.expires_in * 1000),
+        shopId: data.user_id?.toString(),
+        shopName: mlUser?.nickname || "MercadoLibre",
+        isActive: true,
+      },
+    });
+  }
 
   return NextResponse.redirect(new URL("/configuracion?success=ml_connected", req.url));
 }
