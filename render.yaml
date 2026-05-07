@@ -2,7 +2,7 @@ services:
   - type: web
     name: gestion-stock
     runtime: node
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
     startCommand: npx prisma db push && node -e "require('./lib/seed-prod.js')" && npm start
     envVars:
       - key: DATABASE_URL
