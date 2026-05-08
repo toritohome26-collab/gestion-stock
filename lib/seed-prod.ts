@@ -58,6 +58,15 @@ async function main() {
     console.log("SuperAdmin creado:", superEmail);
   }
 
+  // Sucursal por defecto
+  const existingBranch = await prisma.branch.findFirst({ where: { organizationId: org.id, isDefault: true } });
+  if (!existingBranch) {
+    await prisma.branch.create({
+      data: { organizationId: org.id, name: "Local Principal", isDefault: true },
+    });
+    console.log("Sucursal principal creada");
+  }
+
   const catNames = ["General", "Electrónica", "Ropa", "Hogar"];
   for (const name of catNames) {
     await prisma.category.upsert({

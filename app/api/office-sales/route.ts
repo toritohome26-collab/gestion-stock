@@ -11,10 +11,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const branchId = searchParams.get("branchId") || undefined;
 
   const sales = await prisma.officeSale.findMany({
     where: {
       organizationId: orgId,
+      ...(branchId && { branchId }),
       ...(from || to ? { createdAt: { ...(from && { gte: new Date(from) }), ...(to && { lte: new Date(to) }) } } : {}),
     },
     include: {
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
   if (!perms.includes("office.create")) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const body = await req.json();
-  const { items, paymentMethod, discount, notes } = body;
+  const { items, paymentMethod, discount, notes, branchId } = body;
 
   if (!items || items.length === 0) {
     return NextResponse.json({ error: "Debe incluir al menos un producto" }, { status: 400 });
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
   const sale = await prisma.officeSale.create({
     data: {
       organizationId: orgId,
+      branchId: branchId || null,
       saleNumber,
       paymentMethod: paymentMethod || "CASH",
       subtotal,
@@ -86,6 +89,7 @@ export async function POST(req: Request) {
     await prisma.stockMovement.create({
       data: {
         organizationId: orgId,
+        branchId: branchId || null,
         productId: item.productId,
         type: "OUT",
         quantity: item.quantity,

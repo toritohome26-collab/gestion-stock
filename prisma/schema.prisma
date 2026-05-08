@@ -20,6 +20,7 @@ model Organization {
   updatedAt    DateTime  @updatedAt
 
   users           User[]
+  branches        Branch[]
   categories      Category[]
   products        Product[]
   stockMovements  StockMovement[]
@@ -29,9 +30,31 @@ model Organization {
   integrations    Integration[]
 }
 
+model Branch {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  address        String?
+  phone          String?
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users           User[]
+  products        Product[]
+  stockMovements  StockMovement[]
+  officeSales     OfficeSale[]
+  expenses        Expense[]
+
+  @@unique([name, organizationId])
+}
+
 model User {
   id             String   @id @default(cuid())
   organizationId String
+  branchId       String?
   name           String
   email          String
   password       String
@@ -42,6 +65,7 @@ model User {
   updatedAt      DateTime @updatedAt
 
   organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch          Branch?         @relation(fields: [branchId], references: [id])
   stockMovements  StockMovement[]
   officeSales     OfficeSale[]
   expenses        Expense[]
@@ -66,6 +90,7 @@ model Category {
 model Product {
   id             String   @id @default(cuid())
   organizationId String
+  branchId       String?
   sku            String
   name           String
   description    String?
@@ -80,17 +105,17 @@ model Product {
   updatedAt      DateTime @updatedAt
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch          Branch?          @relation(fields: [branchId], references: [id])
   category        Category?        @relation(fields: [categoryId], references: [id])
   stockMovements  StockMovement[]
   saleItems       SaleItem[]
   officeSaleItems OfficeSaleItem[]
-
-  @@unique([sku, organizationId])
 }
 
 model StockMovement {
   id             String   @id @default(cuid())
   organizationId String
+  branchId       String?
   productId      String
   type           String
   quantity       Int
@@ -102,6 +127,7 @@ model StockMovement {
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id])
   product      Product      @relation(fields: [productId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
 }
@@ -109,6 +135,7 @@ model StockMovement {
 model Sale {
   id              String    @id @default(cuid())
   organizationId  String
+  branchId        String?
   channel         String
   externalId      String?
   externalOrderId String?
@@ -150,6 +177,7 @@ model SaleItem {
 model OfficeSale {
   id             String   @id @default(cuid())
   organizationId String
+  branchId       String?
   saleNumber     Int
   paymentMethod  String   @default("CASH")
   subtotal       Float    @default(0)
@@ -160,6 +188,7 @@ model OfficeSale {
   createdAt      DateTime @default(now())
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?          @relation(fields: [branchId], references: [id])
   user         User?            @relation(fields: [userId], references: [id])
   items        OfficeSaleItem[]
 }
@@ -180,6 +209,7 @@ model OfficeSaleItem {
 model Expense {
   id             String    @id @default(cuid())
   organizationId String
+  branchId       String?
   category       String    @default("GENERAL")
   description    String
   amount         Float
@@ -195,6 +225,7 @@ model Expense {
   updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
   payments     Payment[]
 }

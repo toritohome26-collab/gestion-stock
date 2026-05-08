@@ -11,12 +11,14 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") || "";
   const categoryId = searchParams.get("categoryId") || undefined;
+  const branchId = searchParams.get("branchId") || undefined;
   const lowStock = searchParams.get("lowStock") === "true";
 
   const products = await prisma.product.findMany({
     where: {
       organizationId: orgId,
       isActive: true,
+      ...(branchId && { branchId }),
       ...(search && { OR: [{ name: { contains: search } }, { sku: { contains: search } }] }),
       ...(categoryId && { categoryId }),
     },
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
   const product = await prisma.product.create({
     data: {
       organizationId: orgId,
+      branchId: body.branchId || null,
       name: body.name,
       sku: body.sku,
       description: body.description,
@@ -58,6 +61,7 @@ export async function POST(req: Request) {
     await prisma.stockMovement.create({
       data: {
         organizationId: orgId,
+        branchId: body.branchId || null,
         productId: product.id,
         type: "IN",
         quantity: product.stock,

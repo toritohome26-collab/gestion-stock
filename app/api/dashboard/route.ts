@@ -4,14 +4,19 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { startOfMonth, endOfMonth } from "date-fns";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const orgId = (session.user as any).organizationId;
 
+  const { searchParams } = new URL(req.url);
+  const branchId = searchParams.get("branchId") || undefined;
+
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
+
+  const baseWhere = { organizationId: orgId, ...(branchId && { branchId }) };
 
   const [
     totalProducts,
@@ -23,21 +28,22 @@ export async function GET() {
     recentOfficeSales,
     salesByChannel,
     topProducts,
+    branches,
   ] = await Promise.all([
-    prisma.product.count({ where: { organizationId: orgId, isActive: true } }),
-    prisma.product.findMany({ where: { organizationId: orgId, isActive: true }, select: { stock: true, minStock: true } }),
+    prisma.product.count({ where: { ...baseWhere, isActive: true } }),
+    prisma.product.findMany({ where: { ...baseWhere, isActive: true }, select: { stock: true, minStock: true } }),
     prisma.sale.aggregate({
       where: { organizationId: orgId, createdAt: { gte: monthStart, lte: monthEnd } },
       _sum: { total: true, netAmount: true },
       _count: true,
     }),
     prisma.officeSale.aggregate({
-      where: { organizationId: orgId, createdAt: { gte: monthStart, lte: monthEnd } },
+      where: { ...baseWhere, createdAt: { gte: monthStart, lte: monthEnd } },
       _sum: { total: true },
       _count: true,
     }),
     prisma.expense.aggregate({
-      where: { organizationId: orgId, isPaid: false },
+      where: { ...baseWhere, isPaid: false },
       _sum: { amount: true },
       _count: true,
     }),
@@ -48,7 +54,7 @@ export async function GET() {
       include: { items: true },
     }),
     prisma.officeSale.findMany({
-      where: { organizationId: orgId },
+      where: { ...baseWhere },
       take: 5,
       orderBy: { createdAt: "desc" },
       include: { items: true, user: { select: { name: true } } },
@@ -66,6 +72,11 @@ export async function GET() {
       orderBy: { _sum: { total: "desc" } },
       take: 5,
     }),
+    prisma.branch.findMany({
+      where: { organizationId: orgId, isActive: true },
+      select: { id: true, name: true, isDefault: true },
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    }),
   ]);
 
   const lowStockProducts = allProducts.filter(p => p.stock <= p.minStock).length;
@@ -73,6 +84,8 @@ export async function GET() {
   const officeTotal = totalOfficeSalesMonth._sum.total || 0;
 
   return NextResponse.json({
+    branches,
+    activeBranch: branchId || null,
     stats: {
       totalProducts,
       lowStockProducts,

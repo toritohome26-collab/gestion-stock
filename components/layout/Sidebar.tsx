@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, DollarSign,
-  Calculator, Users, Settings, TrendingUp, LogOut, Code2,
+  Calculator, Users, Settings, TrendingUp, LogOut, Code2, MapPin,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/oficina", label: "Venta Oficina", icon: Store, permission: "office.view" },
   { href: "/finanzas", label: "Finanzas", icon: DollarSign, permission: "finances.view" },
   { href: "/calculadora", label: "Calculadora ML", icon: Calculator, permission: "calculator.view" },
+  { href: "/sucursales", label: "Sucursales", icon: MapPin, permission: "users.view" },
   { href: "/usuarios", label: "Usuarios", icon: Users, permission: "users.view" },
   { href: "/configuracion", label: "Configuración", icon: Settings, permission: "integrations.view" },
 ];

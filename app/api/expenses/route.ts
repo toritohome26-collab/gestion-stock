@@ -11,10 +11,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const isPaid = searchParams.get("isPaid");
   const category = searchParams.get("category") || undefined;
+  const branchId = searchParams.get("branchId") || undefined;
 
   const expenses = await prisma.expense.findMany({
     where: {
       organizationId: orgId,
+      ...(branchId && { branchId }),
       ...(isPaid !== null && isPaid !== undefined ? { isPaid: isPaid === "true" } : {}),
       ...(category && { category }),
     },
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
   const expense = await prisma.expense.create({
     data: {
       organizationId: orgId,
+      branchId: body.branchId || null,
       category: body.category || "GENERAL",
       description: body.description,
       amount: parseFloat(body.amount),
