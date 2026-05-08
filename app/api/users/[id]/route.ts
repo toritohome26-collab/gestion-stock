@@ -21,6 +21,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     name: body.name,
     role: body.role,
     isActive: body.isActive,
+    branchId: body.branchId !== undefined ? (body.branchId || null) : undefined,
     permissions: JSON.stringify(body.extraPermissions || []),
   };
 
@@ -31,7 +32,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const user = await prisma.user.update({
     where: { id: params.id },
     data: updateData,
-    select: { id: true, name: true, email: true, role: true, permissions: true, isActive: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, permissions: true, isActive: true, createdAt: true, branchId: true },
   });
 
   return NextResponse.json(user);

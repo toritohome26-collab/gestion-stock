@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
-import { Plus, Edit2, Users } from "lucide-react";
+import { Plus, Edit2, Users, MapPin } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { ROLE_PERMISSIONS, type Permission, type UserRole } from "@/types";
 
@@ -27,13 +27,15 @@ const ALL_PERMISSIONS = Object.values(ROLE_PERMISSIONS).flat().filter((v, i, a) 
 interface User {
   id: string; name: string; email: string; role: string;
   permissions: string; isActive: boolean; createdAt: string;
+  branchId?: string; branch?: { name: string };
 }
 
-const empty = { name: "", email: "", password: "", role: "SELLER" as UserRole, extraPermissions: [] as string[], isActive: true };
+const empty = { name: "", email: "", password: "", role: "SELLER" as UserRole, extraPermissions: [] as string[], isActive: true, branchId: "" };
 
 export default function UsuariosPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
@@ -41,10 +43,12 @@ export default function UsuariosPage() {
   const [saving, setSaving] = useState(false);
 
   async function load() {
-    const r = await fetch("/api/users");
-    if (!r.ok) { setLoading(false); return; }
-    const data = await r.json();
-    setUsers(Array.isArray(data) ? data : []);
+    const [usersRes, branchesRes] = await Promise.all([
+      fetch("/api/users"),
+      fetch("/api/branches"),
+    ]);
+    if (usersRes.ok) setUsers(await usersRes.json());
+    if (branchesRes.ok) setBranches(await branchesRes.json());
     setLoading(false);
   }
 
@@ -63,6 +67,7 @@ export default function UsuariosPage() {
       role: u.role as UserRole,
       extraPermissions: JSON.parse(u.permissions || "[]"),
       isActive: u.isActive,
+      branchId: u.branchId || "",
     });
     setDialogOpen(true);
   }
@@ -77,7 +82,7 @@ export default function UsuariosPage() {
       const r = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, branchId: form.branchId || null }),
       });
       if (!r.ok) throw new Error((await r.json()).error);
       toast(editUser ? "Usuario actualizado" : "Usuario creado", "success");
@@ -101,11 +106,10 @@ export default function UsuariosPage() {
   }
 
   const rolePerms = ROLE_PERMISSIONS[form.role] || [];
-  const extraPerms = form.extraPermissions.filter(p => !rolePerms.includes(p as Permission));
 
   return (
     <div>
-      <Header title="Usuarios" subtitle="Gestión de accesos y permisos" />
+      <Header title="Usuarios" subtitle="Gestión de accesos y permisos por sucursal" />
       <div className="p-6 space-y-4">
         <div className="flex justify-end">
           <Button onClick={openCreate}>
@@ -130,6 +134,7 @@ export default function UsuariosPage() {
                     <TableHead>Nombre</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
+                    <TableHead>Sucursal</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Creado</TableHead>
                     <TableHead></TableHead>
@@ -144,6 +149,16 @@ export default function UsuariosPage() {
                         <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>
                           {ROLES.find(r => r.value === u.role)?.label || u.role}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {u.branchId ? (
+                          <span className="text-xs flex items-center gap-1 text-gray-600">
+                            <MapPin className="h-3 w-3" />
+                            {branches.find(b => b.id === u.branchId)?.name || "—"}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Todas</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={u.isActive ? "success" : "destructive"}>
@@ -187,22 +202,40 @@ export default function UsuariosPage() {
                 <Input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} disabled={!!editUser} />
               </div>
             </div>
+
             <div className="space-y-1">
               <Label>{editUser ? "Nueva contraseña (dejar vacío para no cambiar)" : "Contraseña *"}</Label>
               <Input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
             </div>
-            <div className="space-y-1">
-              <Label>Rol</Label>
-              <Select value={form.role} onValueChange={v => setForm({...form, role: v as UserRole, extraPermissions: []})}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ROLES.map(r => (
-                    <SelectItem key={r.value} value={r.value}>
-                      {r.label} — {r.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Rol</Label>
+                <Select value={form.role} onValueChange={v => setForm({...form, role: v as UserRole, extraPermissions: []})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map(r => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label} — {r.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Sucursal</Label>
+                <Select value={form.branchId || "all"} onValueChange={v => setForm({...form, branchId: v === "all" ? "" : v})}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las sucursales</SelectItem>
+                    {branches.map(b => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}{b.isDefault ? " ★" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
