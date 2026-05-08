@@ -2,33 +2,17 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import {
-  Building2, Users, Package, TrendingUp, ShoppingCart,
-  ToggleLeft, ToggleRight, ChevronDown, RefreshCw, Code2,
-} from "lucide-react";
-
-const PLANS = ["free", "pro", "enterprise", "system"];
-
-function StatCard({ label, value, icon: Icon, color }: any) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-      <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${color}`}>
-        <Icon className="h-6 w-6 text-white" />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        <p className="text-sm text-gray-500">{label}</p>
-      </div>
-    </div>
-  );
-}
+import { Building2, ToggleLeft, ToggleRight, Send, RefreshCw, Code2, X, CheckCircle } from "lucide-react";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
+  const [orgs, setOrgs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [msgOrg, setMsgOrg] = useState<any | null>(null);
+  const [msgText, setMsgText] = useState("");
+  const [toast, setToast] = useState("");
 
   const isSuperAdmin = (session?.user as any)?.isSuperAdmin;
 
@@ -41,7 +25,10 @@ export default function AdminPage() {
   async function fetchData() {
     setLoading(true);
     const res = await fetch("/api/admin/organizations");
-    if (res.ok) setData(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setOrgs(data.orgs || []);
+    }
     setLoading(false);
   }
 
@@ -54,43 +41,95 @@ export default function AdminPage() {
     });
     await fetchData();
     setUpdating(null);
+    showToast(org.isActive ? "Organización desactivada" : "Organización activada");
   }
 
-  async function changePlan(org: any, plan: string) {
+  async function sendAlert() {
+    if (!msgOrg || !msgText.trim()) return;
+    setUpdating(msgOrg.id);
+    await fetch(`/api/admin/organizations/${msgOrg.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alertMessage: msgText.trim() }),
+    });
+    setMsgOrg(null);
+    setMsgText("");
+    await fetchData();
+    setUpdating(null);
+    showToast("Mensaje enviado");
+  }
+
+  async function clearAlert(org: any) {
     setUpdating(org.id);
     await fetch(`/api/admin/organizations/${org.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ alertMessage: null }),
     });
     await fetchData();
     setUpdating(null);
   }
 
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
+
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-gray-400 flex items-center gap-2">
-          <RefreshCw className="h-5 w-5 animate-spin" />
-          Cargando panel...
-        </div>
+        <RefreshCw className="h-6 w-6 text-gray-400 animate-spin" />
       </div>
     );
   }
 
   if (!isSuperAdmin) return null;
 
-  const { orgs = [], stats = {} } = data || {};
-
-  const planColor: Record<string, string> = {
-    free: "bg-gray-100 text-gray-700",
-    pro: "bg-blue-100 text-blue-700",
-    enterprise: "bg-purple-100 text-purple-700",
-    system: "bg-red-100 text-red-700",
-  };
-
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg">
+          <CheckCircle className="h-4 w-4" />
+          {toast}
+        </div>
+      )}
+
+      {/* Modal enviar mensaje */}
+      {msgOrg && (
+        <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-white">Enviar alerta a <span className="text-blue-400">{msgOrg.name}</span></h3>
+              <button onClick={() => { setMsgOrg(null); setMsgText(""); }} className="text-gray-500 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <textarea
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              placeholder="Escribí el mensaje que va a ver esta organización en su dashboard..."
+              value={msgText}
+              onChange={(e) => setMsgText(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={sendAlert}
+                disabled={!msgText.trim() || updating === msgOrg.id}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <Send className="h-4 w-4" />
+                Enviar alerta
+              </button>
+              <button onClick={() => { setMsgOrg(null); setMsgText(""); }} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -99,168 +138,93 @@ export default function AdminPage() {
           </div>
           <div>
             <h1 className="font-bold text-white">Panel del Desarrollador</h1>
-            <p className="text-xs text-gray-400">GestiónStock · Super Admin</p>
+            <p className="text-xs text-gray-400">{orgs.length} organizaciones registradas</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchData}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-800"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Actualizar
-          </button>
-          <span className="text-xs text-gray-500 border border-gray-700 rounded px-2 py-1">
-            {(session?.user as any)?.email}
-          </span>
-        </div>
+        <button
+          onClick={fetchData}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-800"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Actualizar
+        </button>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {/* Stats globales */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Organizaciones" value={stats.totalOrgs || 0} icon={Building2} color="bg-blue-600" />
-          <StatCard label="Activas" value={stats.activeOrgs || 0} icon={ToggleRight} color="bg-green-600" />
-          <StatCard label="Usuarios totales" value={stats.totalUsers || 0} icon={Users} color="bg-purple-600" />
-          <StatCard label="Productos totales" value={stats.totalProducts || 0} icon={Package} color="bg-orange-600" />
-        </div>
-
-        {/* Tabla de organizaciones */}
+      <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="font-semibold text-white flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-gray-400" />
-              Organizaciones ({orgs.length})
-            </h2>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wide">
-                  <th className="text-left px-6 py-3">Organización</th>
-                  <th className="text-left px-4 py-3">Plan</th>
-                  <th className="text-center px-4 py-3">Usuarios</th>
-                  <th className="text-center px-4 py-3">Productos</th>
-                  <th className="text-right px-4 py-3">Ventas mes</th>
-                  <th className="text-left px-4 py-3">Integraciones</th>
-                  <th className="text-left px-4 py-3">Registrado</th>
-                  <th className="text-center px-6 py-3">Estado</th>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wide">
+                <th className="text-left px-6 py-3">Organización</th>
+                <th className="text-left px-4 py-3">Registrado</th>
+                <th className="text-left px-4 py-3">Alerta activa</th>
+                <th className="text-center px-4 py-3">Estado</th>
+                <th className="text-center px-4 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {orgs.map((org) => (
+                <tr key={org.id} className={`hover:bg-gray-800/40 transition-colors ${!org.isActive ? "opacity-50" : ""}`}>
+                  <td className="px-6 py-4">
+                    <p className="font-medium text-white">{org.name}</p>
+                    <p className="text-xs text-gray-500">{org.email}</p>
+                  </td>
+                  <td className="px-4 py-4 text-xs text-gray-400">
+                    {new Date(org.createdAt).toLocaleDateString("es-AR")}
+                  </td>
+                  <td className="px-4 py-4">
+                    {org.alertMessage ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-2 py-1 rounded-lg max-w-xs truncate">
+                          {org.alertMessage}
+                        </span>
+                        <button onClick={() => clearAlert(org)} className="text-gray-600 hover:text-red-400 transition-colors">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <button
+                      onClick={() => toggleActive(org)}
+                      disabled={updating === org.id}
+                      className="flex items-center gap-1.5 mx-auto text-xs font-medium transition-colors disabled:opacity-50"
+                    >
+                      {org.isActive ? (
+                        <>
+                          <ToggleRight className="h-5 w-5 text-green-400" />
+                          <span className="text-green-400">Activa</span>
+                        </>
+                      ) : (
+                        <>
+                          <ToggleLeft className="h-5 w-5 text-red-400" />
+                          <span className="text-red-400">Inactiva</span>
+                        </>
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <button
+                      onClick={() => { setMsgOrg(org); setMsgText(org.alertMessage || ""); }}
+                      className="flex items-center gap-1.5 mx-auto text-xs text-blue-400 hover:text-blue-300 border border-blue-400/30 hover:border-blue-400/60 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Mensaje
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {orgs.map((org: any) => (
-                  <tr key={org.id} className={`hover:bg-gray-800/50 transition-colors ${!org.isActive ? "opacity-50" : ""}`}>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-white">{org.name}</p>
-                        <p className="text-xs text-gray-500">{org.email}</p>
-                        <p className="text-xs text-gray-600 font-mono">{org.slug}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="relative">
-                        <select
-                          value={org.plan}
-                          onChange={(e) => changePlan(org, e.target.value)}
-                          disabled={updating === org.id}
-                          className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer appearance-none pr-6 ${planColor[org.plan] || "bg-gray-100 text-gray-700"}`}
-                        >
-                          {PLANS.map((p) => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="h-3 w-3 absolute right-1 top-1.5 pointer-events-none text-current opacity-60" />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="text-white font-medium">{org._count.users}</span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="text-white font-medium">{org._count.products}</span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <div>
-                        <p className="text-white font-medium">
-                          ${((org.salesMonth?.total || 0) + (org.officeSalesMonth?.total || 0)).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {(org.salesMonth?.count || 0) + (org.officeSalesMonth?.count || 0)} ventas
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-1 flex-wrap">
-                        {org.integrations?.length === 0 && (
-                          <span className="text-xs text-gray-600">—</span>
-                        )}
-                        {org.integrations?.map((p: string) => (
-                          <span key={p} className="text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full border border-gray-700">
-                            {p === "MERCADOLIBRE" ? "ML" : "TN"}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-xs text-gray-400">
-                      {new Date(org.createdAt).toLocaleDateString("es-AR")}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => toggleActive(org)}
-                        disabled={updating === org.id}
-                        className="flex items-center gap-1.5 mx-auto text-xs font-medium transition-colors disabled:opacity-50"
-                      >
-                        {org.isActive ? (
-                          <>
-                            <ToggleRight className="h-5 w-5 text-green-400" />
-                            <span className="text-green-400">Activa</span>
-                          </>
-                        ) : (
-                          <>
-                            <ToggleLeft className="h-5 w-5 text-red-400" />
-                            <span className="text-red-400">Inactiva</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {orgs.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                      No hay organizaciones registradas aún.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Info técnica */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <Code2 className="h-5 w-5 text-gray-400" />
-            Info técnica
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            {[
-              { label: "Base de datos", value: "PostgreSQL · Render" },
-              { label: "Framework", value: "Next.js 14 · App Router" },
-              { label: "ORM", value: "Prisma 7 · PG Adapter" },
-              { label: "Auth", value: "NextAuth · JWT" },
-              { label: "Deploy", value: "Render.com · Free" },
-              { label: "ML App ID", value: process.env.NEXT_PUBLIC_ML_APP_ID || "6939300824223870" },
-              { label: "Multi-tenant", value: "Sí · organizationId" },
-              { label: "Webhooks", value: "ML + Tiendanube" },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-gray-800 rounded-lg p-3">
-                <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <p className="text-gray-200 font-mono text-xs">{value}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+              {orgs.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    No hay organizaciones registradas aún.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

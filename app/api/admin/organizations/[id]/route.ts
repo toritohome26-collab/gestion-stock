@@ -21,6 +21,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.isActive === "boolean") data.isActive = body.isActive;
   if (body.plan) data.plan = body.plan;
   if (body.name) data.name = body.name;
+  if ("alertMessage" in body) {
+    data.alertMessage = body.alertMessage || null;
+    data.alertSentAt = body.alertMessage ? new Date() : null;
+  }
 
   const org = await prisma.organization.update({ where: { id: params.id }, data });
   return NextResponse.json(org);
